@@ -1,8 +1,8 @@
-name: Send Daily WhatsApp Sentence
+name: Send Daily Quote
 
 on:
   schedule:
-    - cron: '0 3 * * *'  # Runs daily at 07:00 UTC
+    - cron: '0 3 * * *'  # Runs daily at 03:00 UTC
   workflow_dispatch:      # Allows manual trigger
 
 jobs:
