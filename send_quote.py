@@ -2,10 +2,7 @@ import os
 
 import requests
 import random
-from dotenv import load_dotenv
 
-
-load_dotenv()
 
 # Environment variables
 NOTION_TOKEN = os.environ['NOTION_TOKEN']
