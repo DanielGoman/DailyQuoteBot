@@ -1,7 +1,8 @@
 import os
-
-import requests
 import random
+import requests
+
+from twilio.rest import Client
 
 
 # Environment variables
@@ -13,20 +14,19 @@ WHATSAPP_FROM = os.environ['WHATSAPP_FROM']
 WHATSAPP_TO = os.environ['WHATSAPP_TO']
 
 
-def main():
+def main() -> None:
     sentences = get_sentences()
     if sentences:
         selected_quote = random.choice(sentences)
         message = (f"📜 Your daily quote:\n\n"
                    f"\"{selected_quote['title']}\" - {selected_quote.get('author', '?')}\n\n"
                    f"🔗 {selected_quote['url']}")
-        send_whatsapp(message)
-
+        send_whatsapp(msg=message, media_url=selected_quote['media_url'])
     else:
         send_whatsapp("⚠️ No sentences found in Notion.")
 
 
-def get_sentences():
+def get_sentences() -> list[dict[str, str]]:
     url = f"https://api.notion.com/v1/databases/{NOTION_DB_ID}/query"
     headers = {
         "Authorization": f"Bearer {NOTION_TOKEN}",
@@ -39,17 +39,27 @@ def get_sentences():
 
     sentences = []
     for item in results:
-        title_text = None
+        title_text, media_url, author_name = None, None, None
         try:
-            quote_title = item['properties']['Quote']['title']
-            if quote_title and isinstance(quote_title, list):
-                title_text = quote_title[0]['plain_text']
+            props = item.get("properties", {})
 
-            quote_author = item['properties']['Author']['rich_text']
-            if quote_author and isinstance(quote_author, list):
-                author_name = quote_author[0]['text']['content']
-            else:
-                author_name = ""
+            # Get quote text
+            quote_prop = props.get("Quote", {})
+            quote_rich_text = quote_prop.get("title", [])
+            if quote_rich_text and isinstance(quote_rich_text, list):
+                title_text = quote_rich_text[0].get("text", {}).get("content")
+
+            # Get author name
+            author_prop = props.get("Author", {})
+            author_rich_text = author_prop.get("rich_text", [])
+            if author_rich_text and isinstance(author_rich_text, list):
+                author_name = author_rich_text[0].get("text", {}).get("content", "")
+
+            # Get cover
+            cover_prop = props.get("Cover", {})
+            files = cover_prop.get("files", [])
+            if files and "file" in files[0]:
+                media_url = files[0].get("file", {}).get("url")
 
         except KeyError:
             continue
@@ -58,6 +68,7 @@ def get_sentences():
             sentences.append({
                 'title': title_text,
                 'author': author_name,
+                'media_url': media_url,
                 'url': shorten_tinyurl(item['url'])
             })
 
@@ -73,15 +84,15 @@ def shorten_tinyurl(long_url: str) -> str:
         return long_url
 
 
-def send_whatsapp(msg: str):
-    url = f"https://api.twilio.com/2010-04-01/Accounts/{TWILIO_SID}/Messages.json"
-    data = {
-        "From": WHATSAPP_FROM,
-        "To": WHATSAPP_TO,
-        "Body": msg
-    }
-    response = requests.post(url, data=data, auth=(TWILIO_SID, TWILIO_AUTH_TOKEN))
-    print(f"Sent: {response.status_code} - {response.text}")
+def send_whatsapp(msg: str, media_url: str = None) -> None:
+    client = Client(TWILIO_SID, TWILIO_AUTH_TOKEN)
+    res = client.messages.create(
+        from_=WHATSAPP_FROM,
+        to=WHATSAPP_TO,
+        body=msg,
+        media_url=[media_url] if media_url else None
+    )
+    print(f"Status: {res.status}")
 
 
 if __name__ == "__main__":
