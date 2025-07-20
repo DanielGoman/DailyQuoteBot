@@ -24,4 +24,4 @@ jobs:
           TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
           WHATSAPP_FROM: ${{ secrets.WHATSAPP_FROM }}
           WHATSAPP_TO: ${{ secrets.WHATSAPP_TO }}
-        run: python send_sentence.py
+        run: python send_quote.py
