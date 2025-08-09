@@ -1,29 +1,29 @@
 import os
 import random
+import asyncio
 import requests
 
-from twilio.rest import Client
+import telegram
+
 
 
 # Environment variables
 NOTION_TOKEN = os.environ['NOTION_TOKEN']
 NOTION_DB_ID = os.environ['NOTION_DB_ID']
-TWILIO_SID = os.environ['TWILIO_SID']
-TWILIO_AUTH_TOKEN = os.environ['TWILIO_AUTH_TOKEN']
-WHATSAPP_FROM = os.environ['WHATSAPP_FROM']
-WHATSAPP_TO = os.environ['WHATSAPP_TO']
+TELEGRAM_CHAT_ID = os.environ['TELEGRAM_CHAT_ID']
+TELEGRAM_BOT_TOKEN = os.environ['TELEGRAM_BOT_TOKEN']
 
 
-def main() -> None:
+async def main() -> None:
     sentences = get_sentences()
     if sentences:
         selected_quote = random.choice(sentences)
         message = (f"📜 Your daily quote:\n\n"
                    f"\"{selected_quote['title']}\" - {selected_quote.get('author', '?')}\n\n"
                    f"🔗 {selected_quote['url']}")
-        send_whatsapp(msg=message, media_url=selected_quote['media_url'])
+        await send_telegram(msg=message, media_url=selected_quote['media_url'])
     else:
-        send_whatsapp("⚠️ No sentences found in Notion.")
+        await send_telegram("⚠️ No sentences found in Notion.")
 
 
 def get_sentences() -> list[dict[str, str]]:
@@ -84,16 +84,17 @@ def shorten_tinyurl(long_url: str) -> str:
         return long_url
 
 
-def send_whatsapp(msg: str, media_url: str = None) -> None:
-    client = Client(TWILIO_SID, TWILIO_AUTH_TOKEN)
-    res = client.messages.create(
-        from_=WHATSAPP_FROM,
-        to=WHATSAPP_TO,
-        body=msg,
-        media_url=[media_url] if media_url else None
-    )
-    print(f"Status: {res.status}")
+async def send_telegram(msg: str, media_url: str = None) -> None:
+    bot = telegram.Bot(token=TELEGRAM_BOT_TOKEN)
+    try:
+        if media_url:
+            await bot.send_photo(chat_id=TELEGRAM_CHAT_ID, photo=media_url, caption=msg)
+        else:
+            await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=msg)
+        print("Message sent successfully!")
+    except Exception as e:
+        print(f"Failed to send message: {e}")
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
