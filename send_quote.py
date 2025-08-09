@@ -3,7 +3,6 @@ import random
 import asyncio
 import requests
 
-from twilio.rest import Client
 import telegram
 
 
