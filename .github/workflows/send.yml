@@ -37,7 +37,7 @@ jobs:
         run: |
           echo "Running script"
           echo 
-          echo "ENVS:
+          echo "ENVS:"
           echo "  REFRESH_WINDOW_MONTHS=${REFRESH_WINDOW_MONTHS}"
           echo
           python main.py --refresh_window_months $REFRESH_WINDOW_MONTHS
