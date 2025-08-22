@@ -21,8 +21,6 @@ async def send_telegram(msg: str, media_url: str = None, telegram_bot_token: str
     except Exception as e:
         print(f"Failed to send message: {e}")
 
-    await bot.close()
-
 
 def split_message(message: str) -> list[str]:
     return [message[i:i + Telegram.TEXT_MESSAGE_LENGTH_LIMIT - 3] + "..."
