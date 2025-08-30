@@ -6,12 +6,11 @@ from dotenv import load_dotenv
 from notion_client import Client
 
 from src.daily_service.utils import format_response
-from src.daily_service.telegram import send_telegram
+from src.daily_service.telegram import send_telegram, send_info_to_bot_service
 from src.daily_service.consts import DEFAULT_REFRESH_WINDOW_MONTHS
 from src.daily_service.notion import get_next_quote, update_used_quotes
 
 load_dotenv()
-
 
 # Environment variables
 NOTION_TOKEN = os.environ['NOTION_TOKEN']
@@ -26,9 +25,10 @@ async def main(refresh_window_months: int) -> None:
                                 refresh_window_months=refresh_window_months)
     if next_quote:
         message, media_url = format_response(next_quote)
-        await send_telegram(msg=message, media_url=media_url,
-                            telegram_bot_token=TELEGRAM_BOT_TOKEN, telegram_chat_id=TELEGRAM_CHAT_ID)
-        update_used_quotes(notion_client, next_quote)
+        message_id = await send_telegram(msg=message, media_url=media_url,
+                                         telegram_bot_token=TELEGRAM_BOT_TOKEN, telegram_chat_id=TELEGRAM_CHAT_ID)
+        # update_used_quotes(notion_client, next_quote)
+        send_info_to_bot_service(message_id, TELEGRAM_CHAT_ID)
     else:
         await send_telegram("⚠️ No sentences found in Notion.")
 

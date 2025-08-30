@@ -40,4 +40,4 @@ jobs:
           echo "ENVS:"
           echo "  REFRESH_WINDOW_MONTHS=${REFRESH_WINDOW_MONTHS}"
           echo
-          python main.py --refresh_window_months $REFRESH_WINDOW_MONTHS
+          python src/run_daily_service.py --refresh_window_months $REFRESH_WINDOW_MONTHS
