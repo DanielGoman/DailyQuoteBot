@@ -2,10 +2,7 @@ import os
 import asyncio
 import argparse
 
-from dotenv import load_dotenv
 from notion_client import Client
-
-load_dotenv('../.env')
 
 from src.daily_service.utils import format_response
 from src.daily_service.telegram import send_telegram

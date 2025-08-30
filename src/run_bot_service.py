@@ -1,9 +1,6 @@
 import os
 import asyncio
 
-from dotenv import load_dotenv
-
-load_dotenv('../.env')
 
 from src.bot_service.telegram_bot import get_telegram_bot
 
