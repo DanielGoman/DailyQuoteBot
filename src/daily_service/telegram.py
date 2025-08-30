@@ -1,6 +1,6 @@
 import telegram
 
-from src.consts import Telegram
+from src.daily_service.consts import Telegram
 
 
 async def send_telegram(msg: str, media_url: str = None, telegram_bot_token: str = None,

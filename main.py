@@ -2,12 +2,15 @@ import os
 import asyncio
 import argparse
 
+from dotenv import load_dotenv
 from notion_client import Client
 
-from src.utils import format_response
-from src.telegram import send_telegram
-from src.consts import DEFAULT_REFRESH_WINDOW_MONTHS
-from src.notion import get_next_quote, update_used_quotes
+from src.daily_service.utils import format_response
+from src.daily_service.telegram import send_telegram
+from src.daily_service.consts import DEFAULT_REFRESH_WINDOW_MONTHS
+from src.daily_service.notion import get_next_quote, update_used_quotes
+
+load_dotenv()
 
 
 # Environment variables
