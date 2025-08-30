@@ -38,7 +38,7 @@ async def action_make_favorite(notion_client: Client, quote_id: str, **kwargs):
 
 
 
-async def action_put_back_to_cycle(notion_client: Client, quote_id: str) -> None:
+async def action_put_back_to_cycle(notion_client: Client, quote_id: str, _) -> None:
     notion_client.pages.update(
         page_id=quote_id,
         properties={
@@ -49,7 +49,7 @@ async def action_put_back_to_cycle(notion_client: Client, quote_id: str) -> None
     )
 
 
-async def action_delete_quote(notion_client: Client, quote_id: str) -> None:
+async def action_delete_quote(notion_client: Client, quote_id: str, _) -> None:
     notion_client.pages.update(
         page_id=quote_id,
         archived=True
