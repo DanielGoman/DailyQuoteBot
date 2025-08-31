@@ -1,5 +1,5 @@
 requests
-python-telegram-bot
+python-telegram-bot[webhooks]
 notion-client
 python-dateutil
 uvicorn
