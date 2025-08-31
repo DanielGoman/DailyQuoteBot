@@ -2,3 +2,5 @@ requests
 python-telegram-bot
 notion-client
 python-dateutil
+uvicorn
+fastapi

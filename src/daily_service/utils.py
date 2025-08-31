@@ -10,7 +10,7 @@ def shorten_tinyurl(long_url: str) -> str:
         return long_url
 
 
-def format_response(quote: dict) -> tuple[str, str]:
+def format_response(quote: dict) -> tuple[str, str, str]:
     title_text, media_url, author_name = None, None, None
     try:
         props = quote.get("properties", {})
@@ -41,4 +41,4 @@ def format_response(quote: dict) -> tuple[str, str]:
                    f"\"{title_text}\" - {author_name}\n\n"
                    f"🔗 {shortened_url}")
 
-    return message, media_url
+    return message, media_url, quote['id']

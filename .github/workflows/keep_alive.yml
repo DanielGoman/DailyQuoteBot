@@ -1,0 +1,15 @@
+name: Keep Alive Ping
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'   # Runs every 10 minutes
+  workflow_dispatch:          # Allows manual trigger if you want
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send keep-alive ping
+        run: |
+          echo "Pinging Render service..."
+          curl -sSf ${{ vars.RENDER_URL }} || echo "Ping failed"

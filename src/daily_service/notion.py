@@ -51,7 +51,7 @@ def reset_quotes_tracker(notion_client: Client, notion_db_id: str) -> None:
             page_id=quote_page["id"],
             properties={
                 "Send Date": {
-                    "checkbox": None
+                    "date": None
                 }
             }
         )
