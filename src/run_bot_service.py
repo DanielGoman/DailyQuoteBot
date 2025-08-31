@@ -17,6 +17,15 @@ def main():
     bot_app.run_polling()
 
 
+# --- Minimal dummy server ---
+def run_server():
+    port = int(os.environ.get("PORT", 5000))
+    server = HTTPServer(("0.0.0.0", port), SimpleHTTPRequestHandler)
+    print(f"Listening on port {port}")
+    server.serve_forever()
+
+
 # ---------------- Run ----------------
 if __name__ == "__main__":
+    threading.Thread(target=run_server, daemon=True).start()
     main()
