@@ -25,7 +25,7 @@ async def main(refresh_window_months: int) -> None:
         message, media_url, quote_id = format_response(next_quote)
         await send_telegram(msg=message, quote_id=quote_id, media_url=media_url,
                             telegram_bot_token=TELEGRAM_BOT_TOKEN, telegram_chat_id=TELEGRAM_CHAT_ID)
-        # update_used_quotes(notion_client, next_quote)
+        update_used_quotes(notion_client, next_quote)
     else:
         await send_telegram("⚠️ No sentences found in Notion.")
 
