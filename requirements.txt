@@ -1,6 +1,5 @@
 requests
-python-telegram-bot[webhooks]
 notion-client
 python-dateutil
-uvicorn
-fastapi
+python-dotenv
+twilio
