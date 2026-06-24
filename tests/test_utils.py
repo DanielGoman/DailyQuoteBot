@@ -1,6 +1,4 @@
-from unittest.mock import patch, MagicMock
-
-from src.daily_service.utils import format_response, shorten_tinyurl
+from src.daily_service.utils import format_response
 
 
 def _make_quote(quote_text="Be water, my friend.",
@@ -19,8 +17,7 @@ def _make_quote(quote_text="Be water, my friend.",
     return {"id": page_id, "url": page_url, "properties": properties}
 
 
-@patch("src.daily_service.utils.shorten_tinyurl", return_value="https://tinyurl.com/abc")
-def test_format_response_happy_path(mock_shorten):
+def test_format_response_happy_path():
     quote = _make_quote()
 
     message, media_url = format_response(quote)
@@ -28,13 +25,11 @@ def test_format_response_happy_path(mock_shorten):
     assert media_url == "https://example.com/img.png"
     assert "Be water, my friend." in message
     assert "Bruce Lee" in message
-    assert "https://tinyurl.com/abc" in message
-    # The trailing link points to the Notion page, not the cover image
-    mock_shorten.assert_called_once_with("https://www.notion.so/Be-water-page-123")
+    # The trailing link is the raw Notion page URL (no shortener)
+    assert "https://www.notion.so/Be-water-page-123" in message
 
 
-@patch("src.daily_service.utils.shorten_tinyurl", return_value="")
-def test_format_response_without_cover(mock_shorten):
+def test_format_response_without_cover():
     quote = _make_quote(cover_url=None)
 
     message, media_url = format_response(quote)
@@ -42,37 +37,15 @@ def test_format_response_without_cover(mock_shorten):
     assert media_url is None
     assert "Be water, my friend." in message
     assert "Bruce Lee" in message
+    assert "https://www.notion.so/Be-water-page-123" in message
 
 
-@patch("src.daily_service.utils.shorten_tinyurl", return_value="https://tinyurl.com/x")
-def test_format_response_uses_question_mark_when_author_missing(mock_shorten):
+def test_format_response_uses_question_mark_when_author_missing():
     quote = _make_quote()
     quote["properties"]["Author"]["rich_text"] = []
 
     message, _ = format_response(quote)
 
     assert message.endswith(
-        "\"Be water, my friend.\" - None\n\n🔗 https://tinyurl.com/x"
-    ) or " - None" in message
-
-
-@patch("src.daily_service.utils.requests.get")
-def test_shorten_tinyurl_returns_response_text(mock_get):
-    mock_get.return_value = MagicMock(text="https://tinyurl.com/short")
-
-    result = shorten_tinyurl("https://example.com/very/long/url")
-
-    assert result == "https://tinyurl.com/short"
-    mock_get.assert_called_once_with(
-        "https://tinyurl.com/api-create.php",
-        params={"url": "https://example.com/very/long/url"},
+        "\"Be water, my friend.\" - None\n\n🔗 https://www.notion.so/Be-water-page-123"
     )
-
-
-@patch("src.daily_service.utils.requests.get", side_effect=RuntimeError("boom"))
-def test_shorten_tinyurl_returns_long_url_on_error(mock_get):
-    long_url = "https://example.com/very/long/url"
-
-    result = shorten_tinyurl(long_url)
-
-    assert result == long_url

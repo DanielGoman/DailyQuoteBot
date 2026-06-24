@@ -1,15 +1,3 @@
-import requests
-
-
-def shorten_tinyurl(long_url: str) -> str:
-    try:
-        response = requests.get("https://tinyurl.com/api-create.php", params={"url": long_url})
-        return response.text
-    except Exception as e:
-        print(f"TinyURL error: {e}")
-        return long_url
-
-
 def format_response(quote: dict) -> tuple[str, str]:
     title_text, media_url, author_name = None, None, None
     try:
@@ -37,9 +25,8 @@ def format_response(quote: dict) -> tuple[str, str]:
         print(f"Error while parsing select quote with page_id: {quote['id']}, with error:", e)
         message = "❌ Error"
     else:
-        shortened_url = shorten_tinyurl(page_url)
         message = (f"📜 Your daily quote:\n\n"
                    f"\"{title_text}\" - {author_name}\n\n"
-                   f"🔗 {shortened_url}")
+                   f"🔗 {page_url}")
 
     return message, media_url
