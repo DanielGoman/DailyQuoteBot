@@ -8,11 +8,12 @@ DailyQuoteBot is a stateless script that fetches a random quote from a Notion da
 
 ## Running the service
 
-Run from the repo root with `PYTHONPATH` set to `src/`:
+Run from the repo root with `PYTHONPATH` set to the repo root (the code uses
+absolute imports rooted at the `src` package, e.g. `from src.daily_service...`):
 
 ```bash
-PYTHONPATH=src python src/run_daily_service.py
-PYTHONPATH=src python src/run_daily_service.py --refresh_window_months 6
+PYTHONPATH=. python src/run_daily_service.py
+PYTHONPATH=. python src/run_daily_service.py --refresh_window_months 6
 ```
 
 Environment variables are loaded from `../.env` (one level above the repo root) via `python-dotenv`.
