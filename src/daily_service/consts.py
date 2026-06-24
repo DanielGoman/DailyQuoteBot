@@ -1,5 +1,5 @@
 
-class Telegram:
+class Whatsapp:
     IMAGE_CAPTION_TEXT_LENGTH_LIMIT = 1024
     TEXT_MESSAGE_LENGTH_LIMIT = 4096
 
