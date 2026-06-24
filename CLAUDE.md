@@ -28,13 +28,14 @@ Environment variables are loaded from `../.env` (one level above the repo root) 
 | `TWILIO_AUTH_TOKEN` | Twilio auth token |
 | `TWILIO_WHATSAPP_FROM` | Sending WhatsApp number, e.g. `+14155238886` (sandbox). No `whatsapp:` prefix — added in code. |
 | `WHATSAPP_TO_NUMBER` | Recipient WhatsApp number, e.g. `+972...`. No `whatsapp:` prefix. |
+| `TINYURL_API_TOKEN` | _Optional._ TinyURL v2 API token. If set, the page link is shortened; if unset, the full Notion URL is used. |
 
 ## Architecture
 
 Single-shot script (`src/run_daily_service.py`) invoked by GitHub Actions cron (`.github/workflows/send.yml`) at 03:00 UTC:
 
 1. `daily_service/notion.py` — picks a random "eligible" quote from Notion. A quote is eligible if its `Send Date` field is empty or older than `refresh_window_months` (default: 3). When no eligible quotes remain, all `Send Date` fields are cleared and the cycle restarts.
-2. `daily_service/utils.py::format_response` — extracts quote text, author, and optional Cover image URL from the Notion page properties, and builds the message body with the Notion **page** URL (`quote["url"]`) as the trailing link. (The Cover image URL is returned separately as the media attachment.)
+2. `daily_service/utils.py::format_response` — extracts quote text, author, and optional Cover image URL from the Notion page properties, and builds the message body with the Notion **page** URL (`quote["url"]`) as the trailing link. If `TINYURL_API_TOKEN` is set, the link is shortened via TinyURL's v2 API (`shorten_url`); otherwise the full URL is used. (The Cover image URL is returned separately as the media attachment.)
 3. `daily_service/whatsapp.py::send_whatsapp` — sends via the Twilio REST API. If a Cover image is present and the caption fits within 1024 chars, it sends a single media message with caption; otherwise it sends the media and text as separate messages. Longer-than-4096-char bodies are chunked.
 4. `daily_service/notion.py::update_used_quotes` — stamps `Send Date` = today on the picked page so it won't be reselected within the refresh window.
 

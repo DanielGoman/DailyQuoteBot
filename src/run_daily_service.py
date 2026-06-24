@@ -18,6 +18,7 @@ TWILIO_ACCOUNT_SID = os.environ['TWILIO_ACCOUNT_SID']
 TWILIO_AUTH_TOKEN = os.environ['TWILIO_AUTH_TOKEN']
 TWILIO_WHATSAPP_FROM = os.environ['TWILIO_WHATSAPP_FROM']
 WHATSAPP_TO_NUMBER = os.environ['WHATSAPP_TO_NUMBER']
+TINYURL_API_TOKEN = os.environ.get('TINYURL_API_TOKEN')  # optional; falls back to full URL
 
 
 def main(refresh_window_months: int) -> None:
@@ -25,7 +26,7 @@ def main(refresh_window_months: int) -> None:
     next_quote = get_next_quote(notion_client=notion_client, notion_db_id=NOTION_DB_ID,
                                 refresh_window_months=refresh_window_months)
     if next_quote:
-        message, media_url = format_response(next_quote)
+        message, media_url = format_response(next_quote, TINYURL_API_TOKEN)
         send_whatsapp(msg=message, media_url=media_url,
                       account_sid=TWILIO_ACCOUNT_SID, auth_token=TWILIO_AUTH_TOKEN,
                       from_number=TWILIO_WHATSAPP_FROM, to_number=WHATSAPP_TO_NUMBER)
