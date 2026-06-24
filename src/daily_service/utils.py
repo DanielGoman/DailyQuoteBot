@@ -13,6 +13,7 @@ def shorten_tinyurl(long_url: str) -> str:
 def format_response(quote: dict) -> tuple[str, str]:
     title_text, media_url, author_name = None, None, None
     try:
+        page_url = quote.get("url")
         props = quote.get("properties", {})
 
         # Get quote text
@@ -36,7 +37,7 @@ def format_response(quote: dict) -> tuple[str, str]:
         print(f"Error while parsing select quote with page_id: {quote['id']}, with error:", e)
         message = "❌ Error"
     else:
-        shortened_url = shorten_tinyurl(media_url)
+        shortened_url = shorten_tinyurl(page_url)
         message = (f"📜 Your daily quote:\n\n"
                    f"\"{title_text}\" - {author_name}\n\n"
                    f"🔗 {shortened_url}")

@@ -34,7 +34,7 @@ Environment variables are loaded from `../.env` (one level above the repo root) 
 Single-shot script (`src/run_daily_service.py`) invoked by GitHub Actions cron (`.github/workflows/send.yml`) at 03:00 UTC:
 
 1. `daily_service/notion.py` — picks a random "eligible" quote from Notion. A quote is eligible if its `Send Date` field is empty or older than `refresh_window_months` (default: 3). When no eligible quotes remain, all `Send Date` fields are cleared and the cycle restarts.
-2. `daily_service/utils.py::format_response` — extracts quote text, author, and optional Cover image URL from the Notion page properties, shortens the image URL via TinyURL, and builds the message body.
+2. `daily_service/utils.py::format_response` — extracts quote text, author, and optional Cover image URL from the Notion page properties, shortens the Notion **page** URL (`quote["url"]`) via TinyURL for the trailing link, and builds the message body. (The Cover image URL is returned separately as the media attachment.)
 3. `daily_service/whatsapp.py::send_whatsapp` — sends via the Twilio REST API. If a Cover image is present and the caption fits within 1024 chars, it sends a single media message with caption; otherwise it sends the media and text as separate messages. Longer-than-4096-char bodies are chunked.
 4. `daily_service/notion.py::update_used_quotes` — stamps `Send Date` = today on the picked page so it won't be reselected within the refresh window.
 

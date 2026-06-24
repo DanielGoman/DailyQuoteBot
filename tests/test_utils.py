@@ -6,7 +6,8 @@ from src.daily_service.utils import format_response, shorten_tinyurl
 def _make_quote(quote_text="Be water, my friend.",
                 author="Bruce Lee",
                 cover_url="https://example.com/img.png",
-                page_id="page-123"):
+                page_id="page-123",
+                page_url="https://www.notion.so/Be-water-page-123"):
     properties = {
         "Quote": {"title": [{"text": {"content": quote_text}}]},
         "Author": {"rich_text": [{"text": {"content": author}}]},
@@ -15,7 +16,7 @@ def _make_quote(quote_text="Be water, my friend.",
         properties["Cover"] = {"files": [{"file": {"url": cover_url}}]}
     else:
         properties["Cover"] = {"files": []}
-    return {"id": page_id, "properties": properties}
+    return {"id": page_id, "url": page_url, "properties": properties}
 
 
 @patch("src.daily_service.utils.shorten_tinyurl", return_value="https://tinyurl.com/abc")
@@ -28,7 +29,8 @@ def test_format_response_happy_path(mock_shorten):
     assert "Be water, my friend." in message
     assert "Bruce Lee" in message
     assert "https://tinyurl.com/abc" in message
-    mock_shorten.assert_called_once_with("https://example.com/img.png")
+    # The trailing link points to the Notion page, not the cover image
+    mock_shorten.assert_called_once_with("https://www.notion.so/Be-water-page-123")
 
 
 @patch("src.daily_service.utils.shorten_tinyurl", return_value="")
