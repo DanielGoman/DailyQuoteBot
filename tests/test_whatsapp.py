@@ -1,6 +1,8 @@
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch, MagicMock, call
 
-from src.daily_service.whatsapp import send_whatsapp, split_message
+from src.daily_service.whatsapp import (send_whatsapp, split_message,
+                                        get_hours_since_last_inbound)
 from src.daily_service.consts import Whatsapp
 
 
@@ -98,3 +100,37 @@ def test_send_whatsapp_swallows_twilio_errors(MockClient, capsys):
 
     captured = capsys.readouterr()
     assert "Failed to send message" in captured.out
+
+
+@patch("src.daily_service.whatsapp.Client")
+def test_get_hours_since_last_inbound_computes_age(MockClient):
+    client = MockClient.return_value
+    sent = datetime.now(timezone.utc) - timedelta(hours=50)
+    client.messages.list.return_value = [MagicMock(date_sent=sent, date_created=sent)]
+
+    hours = get_hours_since_last_inbound(SID, TOKEN, FROM_NUMBER, TO_NUMBER)
+
+    assert hours is not None
+    assert 49.9 < hours < 50.1
+    # Inbound query swaps from_/to: recipient -> our sandbox number
+    client.messages.list.assert_called_once_with(from_=TO, to=FROM_, limit=1)
+
+
+@patch("src.daily_service.whatsapp.Client")
+def test_get_hours_since_last_inbound_handles_naive_timestamp(MockClient):
+    client = MockClient.return_value
+    naive_sent = datetime.utcnow() - timedelta(hours=10)
+    client.messages.list.return_value = [MagicMock(date_sent=naive_sent, date_created=naive_sent)]
+
+    hours = get_hours_since_last_inbound(SID, TOKEN, FROM_NUMBER, TO_NUMBER)
+
+    assert hours is not None
+    assert 9.9 < hours < 10.1
+
+
+@patch("src.daily_service.whatsapp.Client")
+def test_get_hours_since_last_inbound_returns_none_when_no_messages(MockClient):
+    client = MockClient.return_value
+    client.messages.list.return_value = []
+
+    assert get_hours_since_last_inbound(SID, TOKEN, FROM_NUMBER, TO_NUMBER) is None

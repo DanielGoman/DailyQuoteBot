@@ -7,8 +7,9 @@ from notion_client import Client
 load_dotenv('../.env')
 
 from src.daily_service.utils import format_response
-from src.daily_service.whatsapp import send_whatsapp
-from src.daily_service.consts import DEFAULT_REFRESH_WINDOW_MONTHS
+from src.daily_service.whatsapp import send_whatsapp, get_hours_since_last_inbound
+from src.daily_service.consts import (DEFAULT_REFRESH_WINDOW_MONTHS,
+                                      INBOUND_REMINDER_THRESHOLD_HOURS, REMINDER_MESSAGE)
 from src.daily_service.notion import get_next_quote, update_used_quotes
 
 
@@ -33,6 +34,26 @@ def main(refresh_window_months: int) -> None:
         update_used_quotes(notion_client, next_quote)
     else:
         send_whatsapp(msg="⚠️ No sentences found in Notion.", media_url=None,
+                      account_sid=TWILIO_ACCOUNT_SID, auth_token=TWILIO_AUTH_TOKEN,
+                      from_number=TWILIO_WHATSAPP_FROM, to_number=WHATSAPP_TO_NUMBER)
+
+    maybe_remind_to_reply()
+
+
+def maybe_remind_to_reply() -> None:
+    """Send a short, separate reminder if the recipient hasn't replied within the
+    threshold, so the Twilio sandbox opt-in doesn't lapse."""
+    try:
+        hours = get_hours_since_last_inbound(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN,
+                                             TWILIO_WHATSAPP_FROM, WHATSAPP_TO_NUMBER)
+    except Exception as e:
+        print(f"Could not check time since last inbound message: {e}")
+        return
+
+    if hours is None or hours >= INBOUND_REMINDER_THRESHOLD_HOURS:
+        print(f"No inbound reply in the last {INBOUND_REMINDER_THRESHOLD_HOURS}h "
+              f"(measured: {hours}); sending reminder.")
+        send_whatsapp(msg=REMINDER_MESSAGE, media_url=None,
                       account_sid=TWILIO_ACCOUNT_SID, auth_token=TWILIO_AUTH_TOKEN,
                       from_number=TWILIO_WHATSAPP_FROM, to_number=WHATSAPP_TO_NUMBER)
 

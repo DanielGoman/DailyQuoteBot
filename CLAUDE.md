@@ -38,6 +38,7 @@ Single-shot script (`src/run_daily_service.py`) invoked by GitHub Actions cron (
 2. `daily_service/utils.py::format_response` — extracts quote text, author, and optional Cover image URL from the Notion page properties, and builds the message body with the Notion **page** URL (`quote["url"]`) as the trailing link. If `TINYURL_API_TOKEN` is set, the link is shortened via TinyURL's v2 API (`shorten_url`); otherwise the full URL is used. (The Cover image URL is returned separately as the media attachment.)
 3. `daily_service/whatsapp.py::send_whatsapp` — sends via the Twilio REST API. If a Cover image is present and the caption fits within 1024 chars, it sends a single media message with caption; otherwise it sends the media and text as separate messages. Longer-than-4096-char bodies are chunked.
 4. `daily_service/notion.py::update_used_quotes` — stamps `Send Date` = today on the picked page so it won't be reselected within the refresh window.
+5. `run_daily_service.py::maybe_remind_to_reply` — after the daily send, queries the Twilio Messages API (`whatsapp.py::get_hours_since_last_inbound`) for the recipient's most recent **inbound** message. If none was received within `INBOUND_REMINDER_THRESHOLD_HOURS` (48), it sends a short, separate reminder asking them to reply. This keeps the sandbox opt-in (which lapses after 72h of recipient inactivity) alive. Failures here are caught and logged so they never block the daily quote.
 
 **Notion DB schema** expected by the code:
 - `Quote` (title field) — quote text
