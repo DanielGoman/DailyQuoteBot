@@ -1,6 +1,7 @@
 from unittest.mock import patch, call
 
-from src.daily_service.telegram import send_telegram, split_message
+from src.daily_service.telegram import (send_telegram, split_message,
+                                        build_quote_keyboard)
 from src.daily_service.consts import Telegram
 
 
@@ -39,7 +40,7 @@ def test_send_telegram_media_with_short_caption_sends_single_photo(MockTeleBot):
 
     MockTeleBot.assert_called_once_with(BOT_TOKEN)
     bot.send_photo.assert_called_once_with(
-        CHAT_ID, photo=media_url, caption=msg, parse_mode="HTML"
+        CHAT_ID, photo=media_url, caption=msg, parse_mode="HTML", reply_markup=None
     )
     bot.send_message.assert_not_called()
 
@@ -80,7 +81,8 @@ def test_send_telegram_text_only_short_sends_single_message(MockTeleBot):
     send_telegram("hi", None, BOT_TOKEN, CHAT_ID)
 
     bot.send_message.assert_called_once_with(
-        CHAT_ID, "hi", parse_mode="HTML", disable_web_page_preview=True
+        CHAT_ID, "hi", parse_mode="HTML", disable_web_page_preview=True,
+        reply_markup=None
     )
     bot.send_photo.assert_not_called()
 
@@ -94,3 +96,36 @@ def test_send_telegram_swallows_errors(MockTeleBot, capsys):
 
     captured = capsys.readouterr()
     assert "Failed to send message" in captured.out
+
+
+@patch("src.daily_service.telegram.telebot.TeleBot")
+def test_send_telegram_passes_reply_markup_to_photo(MockTeleBot):
+    bot = MockTeleBot.return_value
+    markup = object()
+
+    send_telegram("cap", "https://example.com/img.png", BOT_TOKEN, CHAT_ID,
+                  reply_markup=markup)
+
+    assert bot.send_photo.call_args.kwargs["reply_markup"] is markup
+
+
+def _flatten(markup):
+    return [btn for row in markup.keyboard for btn in row]
+
+
+def test_build_quote_keyboard_not_favorite_shows_favorite_label():
+    markup = build_quote_keyboard("page-1", is_favorite=False)
+    buttons = _flatten(markup)
+
+    by_data = {b.callback_data: b.text for b in buttons}
+    assert by_data["fav:page-1"] == "⭐ Favorite"
+    assert "cycle:page-1" in by_data
+    assert "del:page-1" in by_data
+    assert "more" in by_data
+
+
+def test_build_quote_keyboard_favorite_shows_unfavorite_label():
+    markup = build_quote_keyboard("page-1", is_favorite=True)
+    fav_btn = next(b for b in _flatten(markup) if b.callback_data == "fav:page-1")
+
+    assert fav_btn.text == "☆ Unfavorite"
