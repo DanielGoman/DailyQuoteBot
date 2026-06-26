@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-DailyQuoteBot is a stateless script that fetches a random quote from a Notion database and sends it to a WhatsApp number once a day via Twilio. It runs as a GitHub Actions cron job — there is no long-running server.
+DailyQuoteBot is a stateless script that fetches a random quote from a Notion database and sends it to a Telegram chat once a day via a Telegram bot. It runs as a GitHub Actions cron job — there is no long-running server.
 
 ## Running the service
 
@@ -24,21 +24,17 @@ Environment variables are loaded from `../.env` (one level above the repo root) 
 |---|---|
 | `NOTION_TOKEN` | Notion API token |
 | `NOTION_DB_ID` | Notion database containing the quotes |
-| `TWILIO_ACCOUNT_SID` | Twilio account SID |
-| `TWILIO_AUTH_TOKEN` | Twilio auth token |
-| `TWILIO_WHATSAPP_FROM` | Sending WhatsApp number, e.g. `+14155238886` (sandbox). No `whatsapp:` prefix — added in code. |
-| `WHATSAPP_TO_NUMBER` | Recipient WhatsApp number, e.g. `+972...`. No `whatsapp:` prefix. |
-| `TINYURL_API_TOKEN` | _Optional._ TinyURL v2 API token. If set, the page link is shortened; if unset, the full Notion URL is used. |
+| `TELEGRAM_BOT_TOKEN` | Telegram bot token from [@BotFather](https://t.me/BotFather) (`/mybots` → bot → API Token). |
+| `TELEGRAM_CHAT_ID` | Recipient chat id — the user's numeric Telegram id for a personal DM (from `getUpdates` or [@userinfobot](https://t.me/userinfobot)). |
 
 ## Architecture
 
 Single-shot script (`src/run_daily_service.py`) invoked by GitHub Actions cron (`.github/workflows/send.yml`) at 03:00 UTC:
 
 1. `daily_service/notion.py` — picks a random "eligible" quote from Notion. A quote is eligible if its `Send Date` field is empty or older than `refresh_window_months` (default: 3). When no eligible quotes remain, all `Send Date` fields are cleared and the cycle restarts.
-2. `daily_service/utils.py::format_response` — extracts quote text, author, and optional Cover image URL from the Notion page properties, and builds the message body with the Notion **page** URL (`quote["url"]`) as the trailing link. If `TINYURL_API_TOKEN` is set, the link is shortened via TinyURL's v2 API (`shorten_url`); otherwise the full URL is used. (The Cover image URL is returned separately as the media attachment.)
-3. `daily_service/whatsapp.py::send_whatsapp` — sends via the Twilio REST API. If a Cover image is present and the caption fits within 1024 chars, it sends a single media message with caption; otherwise it sends the media and text as separate messages. Longer-than-4096-char bodies are chunked.
+2. `daily_service/utils.py::format_response` — extracts quote text, author, and optional Cover image URL from the Notion page properties, and builds the message body with the Notion **page** URL (`quote["url"]`) as the trailing link. Telegram auto-links the bare URL, so it is used as-is. (The Cover image URL is returned separately as the media attachment.) `shorten_url` (TinyURL v2) is retained in this module but no longer called.
+3. `daily_service/telegram.py::send_telegram` — sends via the **pyTelegramBotAPI** SDK (`telebot`). If a Cover image is present and the caption fits within 1024 chars, it sends a single `send_photo` with caption; otherwise it sends the photo and text as separate messages. Text messages set `disable_web_page_preview=True`. Longer-than-4096-char bodies are chunked.
 4. `daily_service/notion.py::update_used_quotes` — stamps `Send Date` = today on the picked page so it won't be reselected within the refresh window.
-5. `run_daily_service.py::maybe_remind_to_reply` — after the daily send, queries the Twilio Messages API (`whatsapp.py::get_hours_since_last_inbound`) for the recipient's most recent **inbound** message. If none was received within `INBOUND_REMINDER_THRESHOLD_HOURS` (48), it sends a short, separate reminder asking them to reply. This keeps the sandbox opt-in (which lapses after 72h of recipient inactivity) alive. Failures here are caught and logged so they never block the daily quote.
 
 **Notion DB schema** expected by the code:
 - `Quote` (title field) — quote text
@@ -48,12 +44,13 @@ Single-shot script (`src/run_daily_service.py`) invoked by GitHub Actions cron (
 
 The `Favorite` checkbox property exists in the DB but is no longer read or written by the code.
 
-## Twilio WhatsApp notes
+## Telegram notes
 
-The current setup targets the **Twilio WhatsApp Sandbox**:
-- Recipient must opt in by texting a join code to `+1 415 523 8886`.
-- Sandbox opt-in expires after **72h of inactivity** — recipient has to re-join.
-- Within the 24h customer-service window (which is what the sandbox effectively gives you while opted in), Twilio allows free-form `body`/`media_url` messages. Outside that window, WhatsApp requires a pre-approved Content Template, which this code does not yet use. Moving off the sandbox to a production WhatsApp sender + approved template is the natural next step if the message ever needs to be guaranteed to arrive.
+Delivery is via a Telegram bot using the **pyTelegramBotAPI** (`telebot`) SDK:
+- Create/manage the bot with [@BotFather](https://t.me/BotFather); the API token is `TELEGRAM_BOT_TOKEN`.
+- A bot cannot initiate a chat — the recipient must message the bot once first. The recipient's numeric id (`TELEGRAM_CHAT_ID`) comes from `https://api.telegram.org/bot<TOKEN>/getUpdates` or [@userinfobot](https://t.me/userinfobot).
+- Unlike the old Twilio WhatsApp sandbox, there is no session/opt-in window that lapses, so no reply-reminder is needed.
+- Telegram limits: 4096 chars per text message, 1024 chars per photo caption — both handled in `telegram.py`.
 
 ## Deployment
 

@@ -19,7 +19,7 @@ def _make_quote(quote_text="Be water, my friend.",
     return {"id": page_id, "url": page_url, "properties": properties}
 
 
-def test_format_response_without_token_uses_full_url():
+def test_format_response_uses_full_notion_url():
     quote = _make_quote()
 
     message, media_url = format_response(quote)
@@ -27,21 +27,8 @@ def test_format_response_without_token_uses_full_url():
     assert media_url == "https://example.com/img.png"
     assert "Be water, my friend." in message
     assert "Bruce Lee" in message
-    # No token -> the raw Notion page URL is used
+    # The raw Notion page URL is used (Telegram auto-links it); no shortening.
     assert "https://www.notion.so/Be-water-page-123" in message
-
-
-@patch("src.daily_service.utils.shorten_url", return_value="https://tinyurl.com/abc")
-def test_format_response_with_token_uses_shortened_url(mock_shorten):
-    quote = _make_quote()
-
-    message, _ = format_response(quote, tinyurl_token="tok-123")
-
-    assert "https://tinyurl.com/abc" in message
-    assert "https://www.notion.so/Be-water-page-123" not in message
-    mock_shorten.assert_called_once_with(
-        "https://www.notion.so/Be-water-page-123", "tok-123"
-    )
 
 
 def test_format_response_without_cover():

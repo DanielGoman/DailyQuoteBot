@@ -22,7 +22,7 @@ def shorten_url(long_url: str, api_token: str | None) -> str:
         return long_url
 
 
-def format_response(quote: dict, tinyurl_token: str | None = None) -> tuple[str, str]:
+def format_response(quote: dict) -> tuple[str, str]:
     title_text, media_url, author_name = None, None, None
     try:
         page_url = quote.get("url")
@@ -49,9 +49,8 @@ def format_response(quote: dict, tinyurl_token: str | None = None) -> tuple[str,
         print(f"Error while parsing select quote with page_id: {quote['id']}, with error:", e)
         message = "❌ Error"
     else:
-        link = shorten_url(page_url, tinyurl_token)
         message = (f"📜 Your daily quote:\n\n"
                    f"\"{title_text}\" - {author_name}\n\n"
-                   f"🔗 {link}")
+                   f"🔗 {page_url}")
 
     return message, media_url
