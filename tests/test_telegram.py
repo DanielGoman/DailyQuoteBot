@@ -38,7 +38,9 @@ def test_send_telegram_media_with_short_caption_sends_single_photo(MockTeleBot):
     send_telegram(msg, media_url, BOT_TOKEN, CHAT_ID)
 
     MockTeleBot.assert_called_once_with(BOT_TOKEN)
-    bot.send_photo.assert_called_once_with(CHAT_ID, photo=media_url, caption=msg)
+    bot.send_photo.assert_called_once_with(
+        CHAT_ID, photo=media_url, caption=msg, parse_mode="HTML"
+    )
     bot.send_message.assert_not_called()
 
 
@@ -77,7 +79,9 @@ def test_send_telegram_text_only_short_sends_single_message(MockTeleBot):
 
     send_telegram("hi", None, BOT_TOKEN, CHAT_ID)
 
-    bot.send_message.assert_called_once_with(CHAT_ID, "hi", disable_web_page_preview=True)
+    bot.send_message.assert_called_once_with(
+        CHAT_ID, "hi", parse_mode="HTML", disable_web_page_preview=True
+    )
     bot.send_photo.assert_not_called()
 
 

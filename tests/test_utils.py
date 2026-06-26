@@ -27,8 +27,8 @@ def test_format_response_uses_full_notion_url():
     assert media_url == "https://example.com/img.png"
     assert "Be water, my friend." in message
     assert "Bruce Lee" in message
-    # The raw Notion page URL is used (Telegram auto-links it); no shortening.
-    assert "https://www.notion.so/Be-water-page-123" in message
+    # The long Notion URL is hidden behind an HTML hyperlink.
+    assert '<a href="https://www.notion.so/Be-water-page-123">View on Notion</a>' in message
 
 
 def test_format_response_without_cover():

@@ -8,14 +8,16 @@ def send_telegram(msg: str, media_url: str | None, bot_token: str, chat_id: str)
 
     try:
         if media_url and len(msg) <= Telegram.CAPTION_TEXT_LENGTH_LIMIT:
-            bot.send_photo(chat_id, photo=media_url, caption=msg)
+            bot.send_photo(chat_id, photo=media_url, caption=msg, parse_mode="HTML")
         elif media_url:
             bot.send_photo(chat_id, photo=media_url)
             for chunk in split_message(msg):
-                bot.send_message(chat_id, chunk, disable_web_page_preview=True)
+                bot.send_message(chat_id, chunk, parse_mode="HTML",
+                                 disable_web_page_preview=True)
         else:
             for chunk in split_message(msg):
-                bot.send_message(chat_id, chunk, disable_web_page_preview=True)
+                bot.send_message(chat_id, chunk, parse_mode="HTML",
+                                 disable_web_page_preview=True)
         print("Message sent successfully!")
     except Exception as e:
         print(f"Failed to send message: {e}")

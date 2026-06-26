@@ -1,3 +1,5 @@
+import html
+
 import requests
 
 TINYURL_CREATE_ENDPOINT = "https://api.tinyurl.com/create"
@@ -49,8 +51,10 @@ def format_response(quote: dict) -> tuple[str, str]:
         print(f"Error while parsing select quote with page_id: {quote['id']}, with error:", e)
         message = "❌ Error"
     else:
+        # HTML parse mode: escape user-derived text and hide the long Notion URL
+        # behind a short hyperlink ("View on Notion").
         message = (f"📜 Your daily quote:\n\n"
-                   f"\"{title_text}\" - {author_name}\n\n"
-                   f"🔗 {page_url}")
+                   f"\"{html.escape(title_text)}\" - {html.escape(author_name)}\n\n"
+                   f"🔗 <a href=\"{html.escape(page_url, quote=True)}\">View on Notion</a>")
 
     return message, media_url
