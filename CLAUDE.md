@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 DailyQuoteBot is a stateless script that fetches a random quote from a Notion database and sends it to a Telegram chat once a day via a Telegram bot. It runs as a GitHub Actions cron job — there is no long-running server.
 
+Each quote carries inline buttons (Favorite toggle, Put back in cycle, Delete, Send another). Because button taps need something listening — which the cron job is not — taps are handled by a separate **Vercel Python serverless function** (`api/telegram.py`) registered as the bot's webhook.
+
 ## Running the service
 
 Run from the repo root with `PYTHONPATH` set to the repo root (the code uses
@@ -33,16 +35,25 @@ Single-shot script (`src/run_daily_service.py`) invoked by GitHub Actions cron (
 
 1. `daily_service/notion.py` — picks a random "eligible" quote from Notion. A quote is eligible if its `Send Date` field is empty or older than `refresh_window_months` (default: 3). When no eligible quotes remain, all `Send Date` fields are cleared and the cycle restarts.
 2. `daily_service/utils.py::format_response` — extracts quote text, author, and optional Cover image URL from the Notion page properties, and builds the message body with the Notion **page** URL (`quote["url"]`) as the trailing link. Telegram auto-links the bare URL, so it is used as-is. (The Cover image URL is returned separately as the media attachment.) `shorten_url` (TinyURL v2) is retained in this module but no longer called.
-3. `daily_service/telegram.py::send_telegram` — sends via the **pyTelegramBotAPI** SDK (`telebot`). If a Cover image is present and the caption fits within 1024 chars, it sends a single `send_photo` with caption; otherwise it sends the photo and text as separate messages. Text messages set `disable_web_page_preview=True`. Longer-than-4096-char bodies are chunked.
+3. `daily_service/telegram.py::send_telegram` — sends via the **pyTelegramBotAPI** SDK (`telebot`). If a Cover image is present and the caption fits within 1024 chars, it sends a single `send_photo` with caption; otherwise it sends the photo and text as separate messages. Text messages set `disable_web_page_preview=True`. Longer-than-4096-char bodies are chunked. A `reply_markup` keyboard (from `build_quote_keyboard`) is attached to the message.
 4. `daily_service/notion.py::update_used_quotes` — stamps `Send Date` = today on the picked page so it won't be reselected within the refresh window.
+
+Steps 1–4 are wrapped by `daily_service/service.py::pick_and_send`, shared by the cron entry point (`run_daily_service.py`) and the webhook's "Send another now" button.
+
+**Webhook (`api/telegram.py`, on Vercel)** — receives Telegram callback queries. It verifies the `X-Telegram-Bot-Api-Secret-Token` header against `TELEGRAM_WEBHOOK_SECRET`, ignores taps whose sender id != `TELEGRAM_CHAT_ID`, then `handle_update` dispatches on `callback_data`:
+- `fav:<page_id>` — toggles the `Favorite` checkbox (reads current state, flips it) and edits the message keyboard to flip the button label.
+- `cycle:<page_id>` — clears `Send Date` (`clear_send_date`) so the quote is eligible again.
+- `del:<page_id>` — sets the `Deleted` checkbox (`set_deleted`) and removes the buttons.
+- `more` — runs `pick_and_send` to deliver another quote.
+Every path answers the callback so the button spinner stops. `vercel.json` includes `src/**` so the function can import the shared package.
 
 **Notion DB schema** expected by the code:
 - `Quote` (title field) — quote text
 - `Author` (rich_text) — author name
 - `Cover` (files) — optional image
 - `Send Date` (date) — tracks when the quote was last sent
-
-The `Favorite` checkbox property exists in the DB but is no longer read or written by the code.
+- `Favorite` (checkbox) — toggled by the Favorite button
+- `Deleted` (checkbox) — set by the Delete button; soft-deleted quotes are excluded from selection (`get_unsent_quotes` filters `Deleted == false`)
 
 ## Telegram notes
 
@@ -51,6 +62,18 @@ Delivery is via a Telegram bot using the **pyTelegramBotAPI** (`telebot`) SDK:
 - A bot cannot initiate a chat — the recipient must message the bot once first. The recipient's numeric id (`TELEGRAM_CHAT_ID`) comes from `https://api.telegram.org/bot<TOKEN>/getUpdates` or [@userinfobot](https://t.me/userinfobot).
 - Unlike the old Twilio WhatsApp sandbox, there is no session/opt-in window that lapses, so no reply-reminder is needed.
 - Telegram limits: 4096 chars per text message, 1024 chars per photo caption — both handled in `telegram.py`.
+
+### Buttons / webhook (Vercel)
+
+Button taps are handled by `api/telegram.py`, deployed as a Vercel Python serverless function and registered as the bot's webhook. It needs these env vars set **in Vercel** (separate from the GitHub Actions secrets used by the cron): `NOTION_TOKEN`, `NOTION_DB_ID`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, and `TELEGRAM_WEBHOOK_SECRET` (any random string; also passed as the `secret_token` when registering the webhook).
+
+Register the webhook once after deploy:
+
+```bash
+curl "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook" \
+  -d "url=https://<your-app>.vercel.app/api/telegram" \
+  -d "secret_token=<TELEGRAM_WEBHOOK_SECRET>"
+```
 
 ## Deployment
 

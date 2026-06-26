@@ -8,6 +8,10 @@ from src.daily_service.notion import (
     get_unsent_quotes,
     reset_quotes_tracker,
     update_used_quotes,
+    get_favorite,
+    set_favorite,
+    clear_send_date,
+    set_deleted,
 )
 
 
@@ -34,9 +38,14 @@ def test_get_unsent_quotes_filters_by_send_date_before_and_empty():
     expected_before = (datetime.date.today() - relativedelta(months=3)).isoformat()
     filter_ = call_kwargs["filter"]
     assert filter_ == {
-        "or": [
-            {"property": "Send Date", "date": {"before": expected_before}},
-            {"property": "Send Date", "date": {"is_empty": True}},
+        "and": [
+            {
+                "or": [
+                    {"property": "Send Date", "date": {"before": expected_before}},
+                    {"property": "Send Date", "date": {"is_empty": True}},
+                ]
+            },
+            {"property": "Deleted", "checkbox": {"equals": False}},
         ]
     }
 
@@ -92,4 +101,51 @@ def test_update_used_quotes_stamps_today_on_the_picked_page():
     client.pages.update.assert_called_once_with(
         page_id="picked-1",
         properties={"Send Date": {"date": {"start": today_iso}}},
+    )
+
+
+def test_get_favorite_reads_checkbox():
+    client = MagicMock()
+    client.pages.retrieve.return_value = {
+        "properties": {"Favorite": {"checkbox": True}}
+    }
+
+    assert get_favorite(client, "page-1") is True
+    client.pages.retrieve.assert_called_once_with(page_id="page-1")
+
+
+def test_get_favorite_defaults_false_when_missing():
+    client = MagicMock()
+    client.pages.retrieve.return_value = {"properties": {}}
+
+    assert get_favorite(client, "page-1") is False
+
+
+def test_set_favorite_updates_checkbox():
+    client = MagicMock()
+
+    set_favorite(client, "page-1", True)
+
+    client.pages.update.assert_called_once_with(
+        page_id="page-1", properties={"Favorite": {"checkbox": True}}
+    )
+
+
+def test_clear_send_date_sets_date_none():
+    client = MagicMock()
+
+    clear_send_date(client, "page-1")
+
+    client.pages.update.assert_called_once_with(
+        page_id="page-1", properties={"Send Date": {"date": None}}
+    )
+
+
+def test_set_deleted_defaults_true():
+    client = MagicMock()
+
+    set_deleted(client, "page-1")
+
+    client.pages.update.assert_called_once_with(
+        page_id="page-1", properties={"Deleted": {"checkbox": True}}
     )

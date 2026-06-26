@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "api/telegram.py": {
+      "includeFiles": "src/**"
+    }
+  }
+}

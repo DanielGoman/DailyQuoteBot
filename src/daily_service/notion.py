@@ -22,17 +22,27 @@ def get_unsent_quotes(notion_client: Client, notion_db_id: str, refresh_window_m
     response = notion_client.databases.query(
         database_id=notion_db_id,
         filter={
-            "or": [
+            "and": [
                 {
-                    "property": "Send Date",
-                    "date": {
-                        "before": before_date.isoformat()
-                    }
+                    "or": [
+                        {
+                            "property": "Send Date",
+                            "date": {
+                                "before": before_date.isoformat()
+                            }
+                        },
+                        {
+                            "property": "Send Date",
+                            "date": {
+                                "is_empty": True
+                            }
+                        }
+                    ]
                 },
                 {
-                    "property": "Send Date",
-                    "date": {
-                        "is_empty": True
+                    "property": "Deleted",
+                    "checkbox": {
+                        "equals": False
                     }
                 }
             ]
@@ -67,4 +77,30 @@ def update_used_quotes(notion_client: Client, quote: dict) -> None:
                 }
             }
         }
+    )
+
+
+def get_favorite(notion_client: Client, page_id: str) -> bool:
+    page = notion_client.pages.retrieve(page_id=page_id)
+    return bool(page.get("properties", {}).get("Favorite", {}).get("checkbox", False))
+
+
+def set_favorite(notion_client: Client, page_id: str, value: bool) -> None:
+    notion_client.pages.update(
+        page_id=page_id,
+        properties={"Favorite": {"checkbox": value}}
+    )
+
+
+def clear_send_date(notion_client: Client, page_id: str) -> None:
+    notion_client.pages.update(
+        page_id=page_id,
+        properties={"Send Date": {"date": None}}
+    )
+
+
+def set_deleted(notion_client: Client, page_id: str, value: bool = True) -> None:
+    notion_client.pages.update(
+        page_id=page_id,
+        properties={"Deleted": {"checkbox": value}}
     )
