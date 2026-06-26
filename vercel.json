@@ -1,4 +1,10 @@
 {
+  "builds": [
+    {
+      "src": "api/telegram.py",
+      "use": "@vercel/python"
+    }
+  ],
   "functions": {
     "api/telegram.py": {
       "includeFiles": "src/**"
