@@ -1,7 +1,8 @@
-from unittest.mock import patch, call
+from unittest.mock import patch
 
 from src.daily_service.telegram import (send_telegram, split_message,
-                                        build_quote_keyboard)
+                                        build_quote_keyboard, build_filters_keyboard,
+                                        format_active_filter)
 from src.daily_service.consts import Telegram
 
 
@@ -129,3 +130,28 @@ def test_build_quote_keyboard_favorite_shows_unfavorite_label():
     fav_btn = next(b for b in _flatten(markup) if b.callback_data == "fav:page-1")
 
     assert fav_btn.text == "☆ Unfavorite"
+
+
+def test_build_quote_keyboard_has_filters_button():
+    by_data = {b.callback_data: b.text for b in _flatten(build_quote_keyboard("p", False))}
+    assert "filters" in by_data
+
+
+def test_build_filters_keyboard_marks_active_and_indexes_options():
+    markup = build_filters_keyboard(["Stoicism", "Zen"], ["Meditations"],
+                                    active_genres=["Zen"], active_sources=[])
+    by_data = {b.callback_data: b.text for b in _flatten(markup)}
+
+    assert by_data["gf:0"].startswith("▫️")  # Stoicism inactive
+    assert by_data["gf:1"].startswith("✅")  # Zen active
+    assert by_data["sf:0"].startswith("▫️")  # Meditations inactive
+    assert "fclr" in by_data and "fdone" in by_data
+
+
+def test_format_active_filter_none_when_empty():
+    assert "none" in format_active_filter([], []).lower()
+
+
+def test_format_active_filter_lists_values():
+    text = format_active_filter(["Stoicism"], ["Meditations"])
+    assert "Stoicism" in text and "Meditations" in text

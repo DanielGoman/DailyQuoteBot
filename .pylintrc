@@ -1,0 +1,26 @@
+# Pylint configuration for DailyQuoteBot.
+#
+# The disables below reflect deliberate, project-wide conventions rather than
+# one-off suppressions:
+#   - Import position: run_daily_service.py must load dotenv, and api/telegram.py
+#     must extend sys.path for Vercel bundling, before importing the src package.
+#   - Broad excepts: send/webhook paths intentionally swallow-and-log so a single
+#     failure never takes the whole run down.
+#   - Constant-holder classes (consts.py) have no methods by design.
+#   - The codebase favours self-descriptive names over per-symbol docstrings.
+
+[MESSAGES CONTROL]
+disable =
+    missing-module-docstring,
+    missing-class-docstring,
+    missing-function-docstring,
+    too-few-public-methods,
+    broad-exception-caught,
+    wrong-import-position,
+
+[FORMAT]
+max-line-length = 100
+
+[DESIGN]
+max-args = 8
+max-positional-arguments = 8

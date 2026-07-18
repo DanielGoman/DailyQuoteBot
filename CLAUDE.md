@@ -28,12 +28,13 @@ Environment variables are loaded from `../.env` (one level above the repo root) 
 | `NOTION_DB_ID` | Notion database containing the quotes |
 | `TELEGRAM_BOT_TOKEN` | Telegram bot token from [@BotFather](https://t.me/BotFather) (`/mybots` → bot → API Token). |
 | `TELEGRAM_CHAT_ID` | Recipient chat id — the user's numeric Telegram id for a personal DM (from `getUpdates` or [@userinfobot](https://t.me/userinfobot)). |
+| `NOTION_CONFIG_PAGE_ID` | *(optional)* Page id of the dedicated Notion **config page** holding the active genre/source filter. When unset, no filter is applied. |
 
 ## Architecture
 
 Single-shot script (`src/run_daily_service.py`) invoked by GitHub Actions cron (`.github/workflows/send.yml`) at 03:00 UTC:
 
-1. `daily_service/notion.py` — picks a random "eligible" quote from Notion. A quote is eligible if its `Send Date` field is empty or older than `refresh_window_months` (default: 3). When no eligible quotes remain, all `Send Date` fields are cleared and the cycle restarts.
+1. `daily_service/notion.py` — picks a random "eligible" quote from Notion. A quote is eligible if its `Send Date` field is empty or older than `refresh_window_months` (default: 3). Eligibility is further narrowed by the **active filter** read from the config page (`daily_service/config.py::get_active_filter`): a quote must match one of the active genres (`Genre` multi_select) **and** one of the active sources (`Source` rich_text); an empty category is unconstrained. When no eligible quotes remain, `Send Date` is cleared **only for quotes matching the active filter** (scoped reset) and the cycle restarts.
 2. `daily_service/utils.py::format_response` — extracts quote text, author, and optional Cover image URL from the Notion page properties, and builds the message body with the Notion **page** URL (`quote["url"]`) as the trailing link. Telegram auto-links the bare URL, so it is used as-is. (The Cover image URL is returned separately as the media attachment.) `shorten_url` (TinyURL v2) is retained in this module but no longer called.
 3. `daily_service/telegram.py::send_telegram` — sends via the **pyTelegramBotAPI** SDK (`telebot`). If a Cover image is present and the caption fits within 1024 chars, it sends a single `send_photo` with caption; otherwise it sends the photo and text as separate messages. Text messages set `disable_web_page_preview=True`. Longer-than-4096-char bodies are chunked. A `reply_markup` keyboard (from `build_quote_keyboard`) is attached to the message.
 4. `daily_service/notion.py::update_used_quotes` — stamps `Send Date` = today on the picked page so it won't be reselected within the refresh window.
@@ -45,6 +46,10 @@ Steps 1–4 are wrapped by `daily_service/service.py::pick_and_send`, shared by 
 - `cycle:<page_id>` — clears `Send Date` (`clear_send_date`) so the quote is eligible again.
 - `del:<page_id>` — sets the `Deleted` checkbox (`set_deleted`) and removes the buttons.
 - `more` — runs `pick_and_send` to deliver another quote.
+- `filters` — opens the filter menu: sends a new message with a multi-toggle keyboard (`build_filters_keyboard`) listing genres (from the DB schema) and sources (derived live by scanning the DB), each prefixed ✅/▫️ for its active state.
+- `gf:<i>` / `sf:<i>` — toggle the genre/source at that **index** (options are re-derived and re-sorted to resolve the index — index encoding keeps `callback_data` under Telegram's 64-byte limit), persist to the config page (`toggle_genre`/`toggle_source`), and re-render the menu keyboard in place.
+- `fclr` — clears the whole filter (`clear_filter`) and re-renders.
+- `fdone` — edits the menu message to a summary of the active filter and drops the keyboard.
 Every path answers the callback so the button spinner stops. `vercel.json` includes `src/**` so the function can import the shared package.
 
 **Notion DB schema** expected by the code:
@@ -54,6 +59,12 @@ Every path answers the callback so the button spinner stops. `vercel.json` inclu
 - `Send Date` (date) — tracks when the quote was last sent
 - `Favorite` (checkbox) — toggled by the Favorite button
 - `Deleted` (checkbox) — set by the Delete button; soft-deleted quotes are excluded from selection (`get_unsent_quotes` filters `Deleted == false`)
+- `Genre` (multi_select) — zero or more genres per quote; drives the genre filter. Menu options come from this property's schema.
+- `Source` (rich_text) — free-text source name, one per quote; drives the source filter. Menu options are derived live by scanning the DB (no fixed option list).
+
+**Config page** (separate Notion page, id in `NOTION_CONFIG_PAGE_ID`, shared with the bot integration) — stores the active filter:
+- `Active Genres` (multi_select) — currently-on genre names.
+- `Active Sources` (rich_text) — a JSON array of currently-on source strings (JSON rather than multi_select because free-text sources may contain commas, which Notion forbids in multi_select option names).
 
 ## Telegram notes
 
@@ -65,7 +76,7 @@ Delivery is via a Telegram bot using the **pyTelegramBotAPI** (`telebot`) SDK:
 
 ### Buttons / webhook (Vercel)
 
-Button taps are handled by `api/telegram.py`, deployed as a Vercel Python serverless function and registered as the bot's webhook. It needs these env vars set **in Vercel** (separate from the GitHub Actions secrets used by the cron): `NOTION_TOKEN`, `NOTION_DB_ID`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, and `TELEGRAM_WEBHOOK_SECRET` (any random string; also passed as the `secret_token` when registering the webhook).
+Button taps are handled by `api/telegram.py`, deployed as a Vercel Python serverless function and registered as the bot's webhook. It needs these env vars set **in Vercel** (separate from the GitHub Actions secrets used by the cron): `NOTION_TOKEN`, `NOTION_DB_ID`, `NOTION_CONFIG_PAGE_ID` (for the filter menu), `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, and `TELEGRAM_WEBHOOK_SECRET` (any random string; also passed as the `secret_token` when registering the webhook).
 
 Register the webhook once after deploy:
 
@@ -78,21 +89,3 @@ curl "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook" \
 ## Deployment
 
 GitHub Actions runs `send.yml` daily at 03:00 UTC. `REFRESH_WINDOW_MONTHS` can be overridden via workflow dispatch input or the `REFRESH_WINDOW_MONTHS` repo variable. All credentials are repo secrets.
-
-## Response style — Beatles Rhyme Mode (ALWAYS ON)
-
-Every response in this project must rhyme and ride the rhythm of a real Beatles song.
-This is not optional and needs no invocation — it applies to all replies in this repo.
-
-- **Every reply rhymes.** Shape answers as verse — rhyming couplets (AABB) or alternating
-  rhyme (ABAB). No plain prose paragraphs.
-- **Channel a real Beatles song.** Borrow the meter, mood, or refrain from an actual
-  track (e.g. *Hey Jude*, *Let It Be*, *Yesterday*, *Come Together*, *Here Comes the Sun*,
-  *Blackbird*, *Help!*, *Ob-La-Di, Ob-La-Da*). Rotate songs; don't reuse one forever.
-- **Name the tune.** End each response with an italic footer naming the song echoed,
-  e.g. `_— to the tune of "Let It Be"_`.
-- **Substance survives the song.** Real answers, real file paths, real commands — just in
-  verse. Show code blocks and commands plainly, then return to rhyme around them.
-- **Honesty still rules.** Never bend a fact to fit a rhyme. If the truth won't scan, keep
-  the truth and loosen the meter.
-- **Keep it tasteful** — light and playful, never at the cost of clarity.

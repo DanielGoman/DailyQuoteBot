@@ -14,13 +14,15 @@ NOTION_TOKEN = os.environ['NOTION_TOKEN']
 NOTION_DB_ID = os.environ['NOTION_DB_ID']
 TELEGRAM_BOT_TOKEN = os.environ['TELEGRAM_BOT_TOKEN']
 TELEGRAM_CHAT_ID = os.environ['TELEGRAM_CHAT_ID']
+NOTION_CONFIG_PAGE_ID = os.environ.get('NOTION_CONFIG_PAGE_ID')
 
 
 def main(refresh_window_months: int) -> None:
     notion_client = Client(auth=NOTION_TOKEN)
     pick_and_send(notion_client=notion_client, notion_db_id=NOTION_DB_ID,
                   bot_token=TELEGRAM_BOT_TOKEN, chat_id=TELEGRAM_CHAT_ID,
-                  refresh_window_months=refresh_window_months)
+                  refresh_window_months=refresh_window_months,
+                  config_page_id=NOTION_CONFIG_PAGE_ID)
 
 
 if __name__ == "__main__":

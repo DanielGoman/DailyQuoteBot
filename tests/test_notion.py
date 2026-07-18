@@ -91,6 +91,46 @@ def test_reset_quotes_tracker_clears_send_date_for_all_pages():
         assert c.kwargs["properties"] == {"Send Date": {"date": None}}
 
 
+def test_get_unsent_quotes_adds_genre_and_source_clauses():
+    client = _client_with_query_results([{"id": "q1"}])
+
+    get_unsent_quotes(client, DB_ID, refresh_window_months=3,
+                      active_genres=["Stoicism", "Zen"], active_sources=["Meditations"])
+
+    conditions = client.databases.query.call_args.kwargs["filter"]["and"]
+    assert {"or": [
+        {"property": "Genre", "multi_select": {"contains": "Stoicism"}},
+        {"property": "Genre", "multi_select": {"contains": "Zen"}},
+    ]} in conditions
+    assert {"or": [
+        {"property": "Source", "rich_text": {"equals": "Meditations"}},
+    ]} in conditions
+
+
+def test_get_unsent_quotes_omits_filter_blocks_when_empty():
+    client = _client_with_query_results([{"id": "q1"}])
+
+    get_unsent_quotes(client, DB_ID, refresh_window_months=3)
+
+    conditions = client.databases.query.call_args.kwargs["filter"]["and"]
+    # Only the Send Date + Deleted clauses, no genre/source blocks.
+    assert len(conditions) == 2
+
+
+def test_reset_quotes_tracker_scopes_query_to_filter():
+    client = _client_with_query_results([{"id": "a"}])
+
+    reset_quotes_tracker(client, DB_ID, active_genres=["Stoicism"], active_sources=[])
+
+    conditions = client.databases.query.call_args.kwargs["filter"]["and"]
+    assert {"property": "Deleted", "checkbox": {"equals": False}} in conditions
+    assert {"or": [
+        {"property": "Genre", "multi_select": {"contains": "Stoicism"}},
+    ]} in conditions
+    client.pages.update.assert_called_once_with(
+        page_id="a", properties={"Send Date": {"date": None}})
+
+
 def test_update_used_quotes_stamps_today_on_the_picked_page():
     client = MagicMock()
     quote = {"id": "picked-1"}
