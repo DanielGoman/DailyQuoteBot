@@ -11,21 +11,19 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.daily_service.consts import DEFAULT_REFRESH_WINDOW_MONTHS, Callback
 from src.daily_service.telegram import (build_quote_keyboard, build_filters_keyboard,
-                                        format_active_filter)
+                                        format_active_filter, toggle_keyboard_option,
+                                        clear_keyboard_marks, parse_active_from_keyboard)
 from src.daily_service.service import pick_and_send
 from src.daily_service.notion import (get_favorite, set_favorite,
                                        clear_send_date, set_deleted)
-from src.daily_service.config import (get_active_filter, clear_filter,
-                                      toggle_genre, toggle_source,
+from src.daily_service.config import (get_active_filter, set_active_filter,
                                       list_genre_options, list_source_values)
 
 
-FILTER_ACTIONS_NEEDING_CONFIG = (Callback.OPEN_FILTERS, Callback.TOGGLE_GENRE,
-                                 Callback.TOGGLE_SOURCE, Callback.CLEAR_FILTERS)
-
-
 def _build_filters_markup(notion_client, notion_db_id, config_page_id):
-    """Fetch the current menu vocabulary + active filter and render the keyboard."""
+    """Fetch the current menu vocabulary + active filter and render the keyboard.
+    This is the only filter path that reads Notion; toggles work off the message's
+    own keyboard afterwards, and Done writes back once."""
     genre_options = list_genre_options(notion_client, notion_db_id)
     source_options = list_source_values(notion_client, notion_db_id)
     active_genres, active_sources = get_active_filter(notion_client, config_page_id)
@@ -33,59 +31,42 @@ def _build_filters_markup(notion_client, notion_db_id, config_page_id):
                                   active_genres, active_sources)
 
 
-def _toggle_filter_value(cq, bot, action, arg, notion_client, notion_db_id,
-                         config_page_id) -> None:
-    """Resolve a gf:/sf: index against the freshly-derived option list, toggle it
-    on the config page, and re-render the menu keyboard in place."""
-    if action == Callback.TOGGLE_GENRE:
-        options = list_genre_options(notion_client, notion_db_id)
-        toggle = toggle_genre
-    else:
-        options = list_source_values(notion_client, notion_db_id)
-        toggle = toggle_source
-    try:
-        idx = int(arg)
-    except ValueError:
-        idx = -1
-    if 0 <= idx < len(options):
-        toggle(notion_client, config_page_id, options[idx])
-        note = options[idx]
-    else:
-        note = "Option changed — reopen the menu"
-    bot.edit_message_reply_markup(
-        chat_id=cq.message.chat.id, message_id=cq.message.message_id,
-        reply_markup=_build_filters_markup(notion_client, notion_db_id, config_page_id))
-    bot.answer_callback_query(cq.id, note)
-
-
-def _handle_filter_action(cq, bot, action, arg, notion_client, notion_db_id,
+def _handle_filter_action(cq, bot, action, notion_client, notion_db_id,
                           config_page_id) -> bool:
     """Handle the filter-menu callbacks. Returns True if the action belonged to the
-    filter menu (so the caller stops dispatching), False otherwise."""
-    if action in FILTER_ACTIONS_NEEDING_CONFIG and not config_page_id:
+    filter menu (so the caller stops dispatching), False otherwise.
+
+    Toggling and clearing edit the message's own keyboard only — no Notion call.
+    The selection is persisted once, when Done is pressed."""
+    if action == Callback.OPEN_FILTERS and not config_page_id:
         bot.answer_callback_query(cq.id, "Filters not configured")
         return True
 
     msg_chat, msg_id = cq.message.chat.id, cq.message.message_id
+    markup = cq.message.reply_markup
+
     if action == Callback.OPEN_FILTERS:
-        bot.send_message(msg_chat, "🎛 Tap to toggle genres and sources:",
+        bot.send_message(msg_chat, "🎛 Tap to toggle genres and sources, then press Done:",
                          reply_markup=_build_filters_markup(notion_client, notion_db_id,
                                                             config_page_id))
         bot.answer_callback_query(cq.id)
     elif action in (Callback.TOGGLE_GENRE, Callback.TOGGLE_SOURCE):
-        _toggle_filter_value(cq, bot, action, arg, notion_client, notion_db_id,
-                             config_page_id)
+        if markup is not None:
+            toggle_keyboard_option(markup, cq.data)
+            bot.edit_message_reply_markup(chat_id=msg_chat, message_id=msg_id,
+                                          reply_markup=markup)
+        bot.answer_callback_query(cq.id)
     elif action == Callback.CLEAR_FILTERS:
-        clear_filter(notion_client, config_page_id)
-        bot.edit_message_reply_markup(
-            chat_id=msg_chat, message_id=msg_id,
-            reply_markup=_build_filters_markup(notion_client, notion_db_id, config_page_id))
+        if markup is not None:
+            clear_keyboard_marks(markup)
+            bot.edit_message_reply_markup(chat_id=msg_chat, message_id=msg_id,
+                                          reply_markup=markup)
         bot.answer_callback_query(cq.id, "🧹 Cleared")
     elif action == Callback.DONE_FILTERS:
-        active_genres, active_sources = ([], [])
+        genres, sources = parse_active_from_keyboard(markup) if markup else ([], [])
         if config_page_id:
-            active_genres, active_sources = get_active_filter(notion_client, config_page_id)
-        bot.edit_message_text(format_active_filter(active_genres, active_sources),
+            set_active_filter(notion_client, config_page_id, genres, sources)
+        bot.edit_message_text(format_active_filter(genres, sources),
                               chat_id=msg_chat, message_id=msg_id)
         bot.answer_callback_query(cq.id, "✔ Saved")
     else:
@@ -133,7 +114,7 @@ def handle_update(update, notion_client, bot, chat_id, notion_db_id,
                       refresh_window_months=refresh_window_months,
                       config_page_id=config_page_id)
         bot.answer_callback_query(cq.id, "➕ Sent another")
-    elif _handle_filter_action(cq, bot, action, arg, notion_client, notion_db_id,
+    elif _handle_filter_action(cq, bot, action, notion_client, notion_db_id,
                                config_page_id):
         pass  # handled by the filter menu
     else:  # NOOP label buttons and anything unrecognised.

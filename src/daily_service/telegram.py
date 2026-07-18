@@ -2,6 +2,9 @@ import telebot
 
 from src.daily_service.consts import Telegram, Callback
 
+ACTIVE_MARK = "✅"
+INACTIVE_MARK = "▫️"
+
 
 def build_quote_keyboard(page_id: str, is_favorite: bool) -> "telebot.types.InlineKeyboardMarkup":
     """Inline keyboard attached to each quote. The favorite button toggles, so its
@@ -35,13 +38,13 @@ def build_filters_keyboard(genre_options: list[str], source_options: list[str],
 
     markup.row(telebot.types.InlineKeyboardButton("🏷 Genres", callback_data=Callback.NOOP))
     for i, name in enumerate(genre_options):
-        mark = "✅" if name in active_genres else "▫️"
+        mark = ACTIVE_MARK if name in active_genres else INACTIVE_MARK
         markup.row(telebot.types.InlineKeyboardButton(
             f"{mark} {name}", callback_data=f"{Callback.TOGGLE_GENRE}:{i}"))
 
     markup.row(telebot.types.InlineKeyboardButton("📚 Sources", callback_data=Callback.NOOP))
     for i, name in enumerate(source_options):
-        mark = "✅" if name in active_sources else "▫️"
+        mark = ACTIVE_MARK if name in active_sources else INACTIVE_MARK
         markup.row(telebot.types.InlineKeyboardButton(
             f"{mark} {name}", callback_data=f"{Callback.TOGGLE_SOURCE}:{i}"))
 
@@ -50,6 +53,52 @@ def build_filters_keyboard(genre_options: list[str], source_options: list[str],
         telebot.types.InlineKeyboardButton("✔ Done", callback_data=Callback.DONE_FILTERS),
     )
     return markup
+
+
+def _button_name(text: str) -> str:
+    """Strip the leading ✅/▫️ mark off a toggle button's label."""
+    return text.split(" ", 1)[1] if " " in text else text
+
+
+def _is_toggle(callback_data: str | None) -> bool:
+    data = callback_data or ""
+    return (data.startswith(f"{Callback.TOGGLE_GENRE}:")
+            or data.startswith(f"{Callback.TOGGLE_SOURCE}:"))
+
+
+def toggle_keyboard_option(markup, callback_data: str):
+    """Flip the ✅/▫️ mark on the button with this callback_data, in place. Lets the
+    menu update purely from the message's own keyboard — no Notion round-trip."""
+    for row in markup.keyboard:
+        for btn in row:
+            if btn.callback_data == callback_data:
+                mark = INACTIVE_MARK if btn.text.startswith(ACTIVE_MARK) else ACTIVE_MARK
+                btn.text = f"{mark} {_button_name(btn.text)}"
+    return markup
+
+
+def clear_keyboard_marks(markup):
+    """Set every toggle button on the menu keyboard to inactive, in place."""
+    for row in markup.keyboard:
+        for btn in row:
+            if _is_toggle(btn.callback_data):
+                btn.text = f"{INACTIVE_MARK} {_button_name(btn.text)}"
+    return markup
+
+
+def parse_active_from_keyboard(markup) -> tuple[list[str], list[str]]:
+    """Read (active_genres, active_sources) back out of a menu keyboard's checkmarks."""
+    genres, sources = [], []
+    for row in markup.keyboard:
+        for btn in row:
+            data = btn.callback_data or ""
+            if not btn.text.startswith(ACTIVE_MARK):
+                continue
+            if data.startswith(f"{Callback.TOGGLE_GENRE}:"):
+                genres.append(_button_name(btn.text))
+            elif data.startswith(f"{Callback.TOGGLE_SOURCE}:"):
+                sources.append(_button_name(btn.text))
+    return genres, sources
 
 
 def format_active_filter(active_genres: list[str], active_sources: list[str]) -> str:
