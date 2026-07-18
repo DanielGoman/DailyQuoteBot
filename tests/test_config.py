@@ -4,9 +4,6 @@ from unittest.mock import MagicMock
 from src.daily_service.config import (
     get_active_filter,
     set_active_filter,
-    toggle_genre,
-    toggle_source,
-    clear_filter,
     list_genre_options,
     list_source_values,
 )
@@ -62,41 +59,6 @@ def test_set_active_filter_writes_multiselect_and_json():
     assert props["Active Genres"] == {"multi_select": [{"name": "Stoicism"}]}
     written = props["Active Sources"]["rich_text"][0]["text"]["content"]
     assert json.loads(written) == ["Meditations"]
-
-
-def test_toggle_genre_adds_then_removes():
-    client = MagicMock()
-    client.pages.retrieve.return_value = _config_page([], json.dumps([]))
-
-    toggle_genre(client, CFG, "Zen")  # add
-    added = client.pages.update.call_args.kwargs["properties"]["Active Genres"]
-    assert added == {"multi_select": [{"name": "Zen"}]}
-
-    client.pages.retrieve.return_value = _config_page(["Zen"], json.dumps([]))
-    toggle_genre(client, CFG, "Zen")  # remove
-    removed = client.pages.update.call_args.kwargs["properties"]["Active Genres"]
-    assert removed == {"multi_select": []}
-
-
-def test_toggle_source_adds_source():
-    client = MagicMock()
-    client.pages.retrieve.return_value = _config_page([], json.dumps([]))
-
-    toggle_source(client, CFG, "Meditations")
-
-    props = client.pages.update.call_args.kwargs["properties"]
-    written = props["Active Sources"]["rich_text"][0]["text"]["content"]
-    assert json.loads(written) == ["Meditations"]
-
-
-def test_clear_filter_empties_both():
-    client = MagicMock()
-
-    clear_filter(client, CFG)
-
-    props = client.pages.update.call_args.kwargs["properties"]
-    assert props["Active Genres"] == {"multi_select": []}
-    assert json.loads(props["Active Sources"]["rich_text"][0]["text"]["content"]) == []
 
 
 def test_list_genre_options_from_schema():

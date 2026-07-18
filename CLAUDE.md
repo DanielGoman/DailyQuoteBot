@@ -46,10 +46,10 @@ Steps 1–4 are wrapped by `daily_service/service.py::pick_and_send`, shared by 
 - `cycle:<page_id>` — clears `Send Date` (`clear_send_date`) so the quote is eligible again.
 - `del:<page_id>` — sets the `Deleted` checkbox (`set_deleted`) and removes the buttons.
 - `more` — runs `pick_and_send` to deliver another quote.
-- `filters` — opens the filter menu: sends a new message with a multi-toggle keyboard (`build_filters_keyboard`) listing genres (from the DB schema) and sources (derived live by scanning the DB), each prefixed ✅/▫️ for its active state.
-- `gf:<i>` / `sf:<i>` — toggle the genre/source at that **index** (options are re-derived and re-sorted to resolve the index — index encoding keeps `callback_data` under Telegram's 64-byte limit), persist to the config page (`toggle_genre`/`toggle_source`), and re-render the menu keyboard in place.
-- `fclr` — clears the whole filter (`clear_filter`) and re-renders.
-- `fdone` — edits the menu message to a summary of the active filter and drops the keyboard.
+- `filters` — opens the filter menu: sends a new message with a multi-toggle keyboard (`build_filters_keyboard`) listing genres (from the DB schema) and sources (derived live by scanning the DB), each prefixed ✅/▫️ for its active state. This is the **only** filter path that reads Notion.
+- `gf:<i>` / `sf:<i>` — flip the ✅/▫️ mark on that button **in the message's own keyboard** (`toggle_keyboard_option`), with **no Notion call** — the selection lives in the keyboard until confirmed. Index encoding keeps `callback_data` under Telegram's 64-byte limit.
+- `fclr` — clears all marks in the keyboard (`clear_keyboard_marks`), also without touching Notion.
+- `fdone` — reads the final selection back out of the keyboard (`parse_active_from_keyboard`), persists it **once** via `set_active_filter`, then edits the menu message to a summary of the active filter and drops the keyboard.
 Every path answers the callback so the button spinner stops. `vercel.json` includes `src/**` so the function can import the shared package.
 
 **Notion DB schema** expected by the code:

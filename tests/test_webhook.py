@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 import telebot
 
 from api.telegram import handle_update
+from src.daily_service.telegram import build_filters_keyboard, ACTIVE_MARK, INACTIVE_MARK
 
 
 CHAT_ID = "12345"
@@ -25,6 +26,18 @@ def _update(data, from_id=int(CHAT_ID)):
             "data": data,
         },
     })
+
+
+def _menu_update(data, genres, sources, active_genres, active_sources):
+    """A callback tap on an open filter menu — the message carries the menu keyboard."""
+    update = _update(data)
+    update.callback_query.message.reply_markup = build_filters_keyboard(
+        genres, sources, active_genres, active_sources)
+    return update
+
+
+def _flatten(markup):
+    return [btn for row in markup.keyboard for btn in row]
 
 
 def _dispatch(update, notion_client, bot, config_page_id="cfg-1"):
@@ -112,45 +125,49 @@ def test_open_filters_without_config_is_rejected():
     assert "not configured" in bot.answer_callback_query.call_args.args[1]
 
 
-@patch("api.telegram.get_active_filter", return_value=([], []))
-@patch("api.telegram.list_source_values", return_value=[])
-@patch("api.telegram.list_genre_options", return_value=["Stoicism", "Zen"])
-@patch("api.telegram.toggle_genre")
-def test_toggle_genre_resolves_index_and_rerenders(mock_toggle, _genres, _sources, _active):
+def test_toggle_genre_flips_mark_without_notion_write():
     notion = MagicMock()
     bot = MagicMock()
+    update = _menu_update("gf:1", ["Stoicism", "Zen"], ["Meditations"], [], [])
 
-    _dispatch(_update("gf:1"), notion, bot)
+    _dispatch(update, notion, bot)
 
-    mock_toggle.assert_called_once_with(notion, "cfg-1", "Zen")
-    bot.edit_message_reply_markup.assert_called_once()
-    assert bot.answer_callback_query.call_args.args[1] == "Zen"
+    # A toggle only edits the message keyboard — it must not touch Notion.
+    notion.pages.update.assert_not_called()
+    markup = bot.edit_message_reply_markup.call_args.kwargs["reply_markup"]
+    by_data = {b.callback_data: b.text for b in _flatten(markup)}
+    assert by_data["gf:1"].startswith(ACTIVE_MARK)   # Zen now active
+    assert by_data["gf:0"].startswith(INACTIVE_MARK)  # Stoicism untouched
 
 
-@patch("api.telegram.get_active_filter", return_value=([], []))
-@patch("api.telegram.list_source_values", return_value=[])
-@patch("api.telegram.list_genre_options", return_value=["Stoicism"])
-@patch("api.telegram.clear_filter")
-def test_clear_filters_clears_and_rerenders(mock_clear, _genres, _sources, _active):
+def test_clear_filters_marks_all_inactive_without_notion_write():
     notion = MagicMock()
     bot = MagicMock()
+    update = _menu_update("fclr", ["Stoicism"], ["Meditations"],
+                          ["Stoicism"], ["Meditations"])
 
-    _dispatch(_update("fclr"), notion, bot)
+    _dispatch(update, notion, bot)
 
-    mock_clear.assert_called_once_with(notion, "cfg-1")
-    bot.edit_message_reply_markup.assert_called_once()
+    notion.pages.update.assert_not_called()
+    markup = bot.edit_message_reply_markup.call_args.kwargs["reply_markup"]
+    for btn in _flatten(markup):
+        if (btn.callback_data or "").startswith(("gf:", "sf:")):
+            assert btn.text.startswith(INACTIVE_MARK)
 
 
-@patch("api.telegram.get_active_filter", return_value=(["Stoicism"], ["Meditations"]))
-def test_done_filters_shows_summary_and_drops_keyboard(_active):
+@patch("api.telegram.set_active_filter")
+def test_done_persists_selection_once_and_shows_summary(mock_set):
     notion = MagicMock()
     bot = MagicMock()
+    update = _menu_update("fdone", ["Stoicism", "Zen"], ["Meditations"],
+                          ["Zen"], ["Meditations"])
 
-    _dispatch(_update("fdone"), notion, bot)
+    _dispatch(update, notion, bot)
 
-    bot.edit_message_text.assert_called_once()
+    # Persisted exactly once, with the keyboard's active selection.
+    mock_set.assert_called_once_with(notion, "cfg-1", ["Zen"], ["Meditations"])
     summary = bot.edit_message_text.call_args.args[0]
-    assert "Stoicism" in summary and "Meditations" in summary
+    assert "Zen" in summary and "Meditations" in summary
 
 
 def test_tap_from_wrong_user_is_ignored():

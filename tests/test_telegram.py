@@ -2,7 +2,9 @@ from unittest.mock import patch
 
 from src.daily_service.telegram import (send_telegram, split_message,
                                         build_quote_keyboard, build_filters_keyboard,
-                                        format_active_filter)
+                                        format_active_filter, toggle_keyboard_option,
+                                        clear_keyboard_marks, parse_active_from_keyboard,
+                                        ACTIVE_MARK, INACTIVE_MARK)
 from src.daily_service.consts import Telegram
 
 
@@ -155,3 +157,46 @@ def test_format_active_filter_none_when_empty():
 def test_format_active_filter_lists_values():
     text = format_active_filter(["Stoicism"], ["Meditations"])
     assert "Stoicism" in text and "Meditations" in text
+
+
+def test_toggle_keyboard_option_flips_single_button():
+    markup = build_filters_keyboard(["Stoicism", "Zen"], [], [], [])
+
+    toggle_keyboard_option(markup, "gf:1")
+
+    by_data = {b.callback_data: b.text for b in _flatten(markup)}
+    assert by_data["gf:1"].startswith(ACTIVE_MARK)    # Zen toggled on
+    assert by_data["gf:0"].startswith(INACTIVE_MARK)  # Stoicism unchanged
+
+    toggle_keyboard_option(markup, "gf:1")  # flip back off
+    by_data = {b.callback_data: b.text for b in _flatten(markup)}
+    assert by_data["gf:1"].startswith(INACTIVE_MARK)
+
+
+def test_clear_keyboard_marks_resets_all_toggles():
+    markup = build_filters_keyboard(["Stoicism"], ["Meditations"],
+                                    ["Stoicism"], ["Meditations"])
+
+    clear_keyboard_marks(markup)
+
+    for btn in _flatten(markup):
+        if (btn.callback_data or "").startswith(("gf:", "sf:")):
+            assert btn.text.startswith(INACTIVE_MARK)
+
+
+def test_parse_active_from_keyboard_roundtrips_selection():
+    markup = build_filters_keyboard(["Stoicism", "Zen"], ["Meditations", "Tao"],
+                                    ["Zen"], ["Tao"])
+
+    genres, sources = parse_active_from_keyboard(markup)
+
+    assert genres == ["Zen"]
+    assert sources == ["Tao"]
+
+
+def test_parse_active_from_keyboard_handles_multiword_names():
+    markup = build_filters_keyboard([], ["Tao Te Ching"], [], ["Tao Te Ching"])
+
+    _, sources = parse_active_from_keyboard(markup)
+
+    assert sources == ["Tao Te Ching"]

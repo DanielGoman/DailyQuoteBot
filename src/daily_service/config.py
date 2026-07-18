@@ -47,24 +47,6 @@ def set_active_filter(notion_client: Client, config_page_id: str,
     )
 
 
-def toggle_genre(notion_client: Client, config_page_id: str, genre: str) -> None:
-    """Flip a genre in/out of the active set."""
-    genres, sources = get_active_filter(notion_client, config_page_id)
-    genres = _toggled(genres, genre)
-    set_active_filter(notion_client, config_page_id, genres, sources)
-
-
-def toggle_source(notion_client: Client, config_page_id: str, source: str) -> None:
-    """Flip a source in/out of the active set."""
-    genres, sources = get_active_filter(notion_client, config_page_id)
-    sources = _toggled(sources, source)
-    set_active_filter(notion_client, config_page_id, genres, sources)
-
-
-def clear_filter(notion_client: Client, config_page_id: str) -> None:
-    set_active_filter(notion_client, config_page_id, [], [])
-
-
 def list_genre_options(notion_client: Client, notion_db_id: str) -> list[str]:
     """Every genre in the Quotes DB schema — no page scan needed."""
     db = notion_client.databases.retrieve(database_id=notion_db_id)
@@ -94,10 +76,6 @@ def list_source_values(notion_client: Client, notion_db_id: str) -> list[str]:
             break
         cursor = response.get("next_cursor")
     return sorted(seen, key=str.casefold)
-
-
-def _toggled(values: list[str], value: str) -> list[str]:
-    return [v for v in values if v != value] if value in values else values + [value]
 
 
 def _rich_text_plain(rich_text: list) -> str:
